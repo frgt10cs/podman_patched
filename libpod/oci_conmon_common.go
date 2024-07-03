@@ -1228,6 +1228,24 @@ func (r *ConmonOCIRuntime) createOCIContainer(ctr *Container, restoreOptions *Co
 	}
 	ctr.state.PID = pid
 
+	c, err := net.Dial("unix", "/tmp/podman.sock")
+	if err == nil {
+		defer c.Close()
+
+		if _, err := c.Write([]byte(strconv.Itoa(pid))); err != nil {
+			return -1, fmt.Errorf("failed send pid (): %w", err)
+		}
+
+		buf := make([]byte, 1024)
+		for {
+			if n, err := c.Read(buf[:]); err != nil {
+				return -1, fmt.Errorf("failed read from sock (): %w", err)
+			} else if string(buf[0:n]) == "continue" {
+				break
+			}
+		}
+	}
+
 	conmonPID, err := readConmonPidFile(ctr.config.ConmonPidFile)
 	if err != nil {
 		logrus.Warnf("Error reading conmon pid file for container %s: %v", ctr.ID(), err)
